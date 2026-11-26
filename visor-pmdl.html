@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0}:root,html{height:100%}[hidden]{display:none!important}</style>
+<title>Visor PMDL</title>
+<style>
+/* interfaz estilo editor 3D: barra de menús, vista con herramientas a la izquierda, paneles abajo o a la derecha */
+:root{--bg:#eef0f4;--head:#fff;--panel:#fff;--btn:#fff;--fg:#18202e;--mut:#586479;--line:#ccd2de;--acc:#c25400;--onacc:#fff;--view:#1b2233;--mono:ui-monospace,Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10141d;--head:#192030;--panel:#192030;--btn:#232c40;--fg:#e7ebf3;--mut:#98a4ba;--line:#303a4f;--acc:#ff9633;--onacc:#10141d;--view:#0a0d14;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10141d;--head:#192030;--panel:#192030;--btn:#232c40;--fg:#e7ebf3;--mut:#98a4ba;--line:#303a4f;--acc:#ff9633;--onacc:#10141d;--view:#0a0d14;color-scheme:dark}
+html,body{height:100%}body{background:var(--bg);color:var(--fg);font:12px/1.4 Inter,system-ui,sans-serif;overflow:hidden}
+button,select,input,.item{font:inherit;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:4px;padding:4px 8px}
+button,summary,.item,select{cursor:pointer}button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--onacc);font-weight:600}button:disabled{opacity:.35;cursor:default}
+:focus-visible,.item:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+#stage{height:100%;display:grid;grid-template:"head" auto "view" minmax(0,1fr) "side" 28% "foot" auto / minmax(0,1fr);gap:2px}
+@media(min-width:760px),(orientation:landscape) and (min-width:560px){#stage{grid-template:"head head" auto "view side" minmax(0,1fr) "foot foot" auto / minmax(0,1fr) 210px}.tabs{padding:3px 2px 0}.tabs button{padding:4px 5px;font-size:11px}.page{padding-left:5px}.f{grid-template-columns:1fr}}
+header{grid-area:head;background:var(--head);display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:4px max(6px,env(safe-area-inset-right,0px)) 4px max(6px,env(safe-area-inset-left,0px))}
+header h1{font-size:12px;margin:0 0 0 auto;color:var(--mut);font-weight:500;white-space:nowrap}
+summary{list-style:none;padding:5px 9px;border-radius:4px}summary::-webkit-details-marker{display:none}details[open]>summary{background:var(--acc);color:var(--onacc)}
+.menu>div{position:absolute;z-index:30;left:6px;margin-top:4px;width:min(290px,calc(100vw - 12px));max-height:65vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px #0009}
+.menu .item,.menu>div>button{position:relative;display:block;text-align:left;background:transparent;border:0;padding:9px}
+.menu label.item input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;padding:0}.menu label.check{display:flex;gap:8px;align-items:center;padding:8px 9px}
+.menu p{margin:4px 9px;color:var(--mut)}#file2{max-width:100%;box-sizing:border-box}
+#two{display:flex;gap:4px;align-items:center;flex-wrap:wrap;width:100%}#two select{min-width:0;flex:1}
+.view{grid-area:view;position:relative;min-height:0;min-width:0;overflow:hidden}
+#c{width:100%;height:100%;display:block;background:var(--view);touch-action:none}
+#tools{position:absolute;left:5px;top:5px;bottom:5px;display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;gap:2px;pointer-events:none}
+#tools button{pointer-events:auto;width:46px;height:38px;padding:2px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--panel);opacity:.93}
+#tools button[aria-pressed=true]{background:var(--acc)}#tools button:disabled{opacity:.45}#tools button[hidden]{display:none}#tools span{font-size:9px;line-height:1.1}#tools .gap{margin-top:5px}
+#big{position:absolute;right:6px;bottom:6px;width:32px;height:32px;padding:0;display:grid;place-items:center;background:var(--panel);opacity:.93}
+#big .close,#big[aria-pressed=true] .open{display:none}#big[aria-pressed=true] .close{display:block}
+#nav{position:absolute;top:4px;right:5px;width:72px}#gizmo{display:block;width:72px;height:72px;cursor:pointer;touch-action:manipulation}
+#nav label{display:flex;align-items:center;gap:3px;font:10px var(--mono);margin-top:2px;background:var(--panel);border-radius:3px;padding-left:4px}
+#nav input{width:100%;min-width:0;box-sizing:border-box;height:18px;padding:0 3px;font:10px var(--mono);background:transparent;border:0}
+#sel{position:absolute;left:58px;top:4px;right:84px;margin:0;font-size:11px;color:#e7ebf3;text-shadow:0 1px 2px #000;pointer-events:none}
+#out{position:absolute;inset:20% 10%;width:80%;height:60%;font:11px var(--mono);background:var(--panel);color:var(--fg)}
+aside{grid-area:side;background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0}
+.tabs{display:flex;gap:2px;background:var(--head);padding:3px 6px 0}.tabs button{border:0;border-radius:4px 4px 0 0;background:transparent;color:var(--mut)}.tabs button[aria-selected=true]{background:var(--bg);color:var(--acc);font-weight:600}
+.page{flex:1;overflow:auto;padding:6px max(8px,env(safe-area-inset-right,0px)) 8px max(8px,env(safe-area-inset-left,0px))}
+#list div{display:flex;align-items:center;gap:6px}#list div:nth-child(odd){background:#80808014}
+#list input{appearance:none;order:2;width:30px;height:28px;margin:0;border:0;padding:0;background:var(--fg);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6e6e6' stroke-width='2'%3E%3Cpath d='M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6zM12 9a3 3 0 100 6 3 3 0 000-6z'/%3E%3C/svg%3E") center/18px no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6e6e6' stroke-width='2'%3E%3Cpath d='M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6zM12 9a3 3 0 100 6 3 3 0 000-6z'/%3E%3C/svg%3E") center/18px no-repeat;cursor:pointer}#list input:not(:checked){background:var(--mut);-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2'%3E%3Cpath d='M2 10s4 6 10 6 10-6 10-6M7 15l-2 3M12 16v3M17 15l2 3'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23777777' stroke-width='2'%3E%3Cpath d='M2 10s4 6 10 6 10-6 10-6M7 15l-2 3M12 16v3M17 15l2 3'/%3E%3C/svg%3E")}
+#list button{flex:1;min-width:0;text-align:left;background:transparent;border:0;font:11px var(--mono);padding:6px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#list button::before{content:"▽ ";color:var(--acc)}#list button[aria-pressed=true]{background:var(--acc);color:var(--onacc)}
+#list button[aria-pressed=true]::before{color:var(--onacc)}
+.axes{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}.axes button{min-height:34px}
+.f{display:grid;grid-template-columns:1fr 1fr;gap:6px}.f label{display:flex;flex-direction:column;color:var(--mut);min-width:0}.f input,.f select{width:100%;box-sizing:border-box}
+.bar{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}pre{font:10px/1.5 var(--mono);overflow:auto;margin:0}
+footer{grid-area:foot;background:var(--head);color:var(--mut);padding:3px max(8px,env(safe-area-inset-right,0px)) 3px max(8px,env(safe-area-inset-left,0px));max-height:3.2em;overflow:auto}footer p{margin:0}
+/* vista maximizada */
+#stage.full{grid-template:"view" minmax(0,1fr) "foot" auto / minmax(0,1fr)}#stage.full header,#stage.full aside{display:none}
+@media(orientation:landscape) and (max-height:500px){#two{width:auto;flex:1;min-width:0;flex-wrap:nowrap}header h1{display:none}#sel{left:110px}}
+</style>
+<div id="stage">
+<header>
+<details class="menu"><summary>Archivo</summary><div>
+<label class="item">Abrir .pmdl…<input type="file" id="file"></label><label class="item">Añadir 2º .pmdl…<input type="file" id="add"></label><label class="item">Abrir textura…<input type="file" id="tex" accept="image/png,image/jpeg,image/webp"></label>
+<button id="notex">Quitar textura</button><button id="savep">Guardar .pmdl</button><button id="obj">Copiar OBJ</button>
+<p>¿No se abre el selector? Usa este para el primer modelo:</p><input type="file" id="file2" aria-label="Selector de archivos alternativo">
+</div></details>
+<details class="menu"><summary>Vista</summary><div>
+<label class="check"><input type="checkbox" id="shade" checked> Sombreado</label>
+<label class="check"><input type="checkbox" id="wire"> Malla de alambre</label>
+<label class="check"><input type="checkbox" id="grid" checked> Cuadrícula</label>
+<label class="check"><input type="checkbox" id="colors"> Un color por parte</label>
+<button id="reset">Centrar vista</button>
+</div></details>
+<details class="menu"><summary>Ayuda</summary><div>
+<p>Toca una parte para seleccionarla y tócala otra vez para soltarla.</p>
+<p>Girar, Cámara y Mover definen lo que hace un dedo. Con dos dedos amplías y desplazas la vista.</p>
+<p>La textura (PNG o JPG) se aplica a la selección, o a todo el modelo activo.</p>
+<p>Guardar crea una copia en ZIP del modelo activo. Las partes ocultas se guardan; las eliminadas no se ven. Conserva el original.</p>
+<p>Si pasaste partes, guarda el modelo que las recibió y también el de origen si las quitaste.</p>
+<p>El archivo se lee en tu dispositivo. No se cargan huesos ni animaciones.</p>
+</div></details>
+<h1>Visor PMDL · v22</h1>
+<div id="two" hidden><select id="act" aria-label="Modelo activo"></select><button id="selm">Seleccionar modelo</button><label><input type="checkbox" id="apart" checked> Separados</label></div>
+</header>
+<div class="view">
+<canvas id="c" aria-label="Vista 3D"></canvas>
+<p id="sel"></p>
+<div id="tools" role="toolbar" aria-label="Herramientas">
+<button id="mrot" aria-label="Girar la vista" title="Girar la vista" aria-pressed="true"><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 11-3-6.2M20 4v5h-5"/></svg><span>Girar</span></button>
+<button id="mcam" aria-label="Mover cámara" title="Mover cámara" aria-pressed="false"><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3"/></svg><span>Cámara</span></button>
+<button id="mmove" aria-label="Mover selección" title="Mover selección" aria-pressed="false"><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 5-6 2-2 7z"/></svg><span>Mover</span></button>
+<button id="focus" aria-label="Enfocar selección" title="Enfocar selección" ><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Enfocar</span></button>
+<button id="none" aria-label="Quitar selección" title="Quitar selección" ><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M9 9l6 6M15 9l-6 6"/></svg><span>Soltar</span></button>
+<button id="tcopy" aria-label="Copiar al otro modelo" title="Copiar al otro modelo" hidden class="gap"><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h11v11H9zM5 15H4V4h11v1"/></svg><span>Copiar</span></button>
+<button id="tmove" aria-label="Pasar al otro modelo" title="Pasar al otro modelo" hidden><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h12M11 7l5 5-5 5M20 4v16"/></svg><span>Pasar</span></button>
+<button id="del" aria-label="Eliminar selección" title="Eliminar selección" class="gap"><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span>Borrar</span></button>
+<button id="undo" aria-label="Deshacer" title="Deshacer" ><svg class="" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3"/></svg><span>Deshacer</span></button>
+</div>
+<div id="nav" role="group" aria-label="Ángulos de la cámara en grados"><canvas id="gizmo" width="168" height="168" aria-label="Toca un eje para ver el modelo desde ese lado"></canvas>
+<label style="color:#f0647a">X<input type="number" id="ax" step="5"></label>
+<label style="color:#8fce4a">Y<input type="number" id="ay" step="5"></label>
+<label style="color:#5aa5f5">Z<input type="number" id="az" step="5"></label></div>
+<button id="big" aria-pressed="false" aria-label="Ampliar visor" title="Ampliar visor"><svg class="open" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6"/></svg><svg class="close" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4v6h6M10 20v-6H4"/></svg></button>
+<textarea id="out" hidden aria-label="Texto OBJ"></textarea>
+</div>
+<aside>
+<div class="tabs" role="tablist"><button role="tab" data-tab="tscene" aria-selected="true">Escena</button><button role="tab" data-tab="ttrans" aria-selected="false">Transformar</button><button role="tab" data-tab="tdata" aria-selected="false">Datos</button></div>
+<div class="page" id="tscene"><div id="list"></div></div>
+<div class="page" id="ttrans" hidden><p>Ajusta la posición de las partes seleccionadas.</p>
+<div class="axes"><button data-m="0,-1">X −</button><button data-m="1,-1">Y −</button><button data-m="2,-1">Z −</button><button data-m="0,1">X +</button><button data-m="1,1">Y +</button><button data-m="2,1">Z +</button></div>
+<div class="bar"><button id="restore">Restaurar todo</button></div></div>
+<div class="page" id="tdata" hidden><div class="f">
+<label>Inicio (hex)<input id="off" value="0"></label>
+<label>Nº de vértices<input id="cnt" type="number" value="300" min="3"></label>
+<label>Bytes por vértice<input id="str" type="number" value="12" min="3"></label>
+<label>Posición en el vértice<input id="pos" type="number" value="0" min="0"></label>
+<label>Formato<select id="fmt"><option value="2">Entero 16 bits</option><option value="3">Decimal 32 bits</option><option value="1">Entero 8 bits</option></select></label>
+<label>Unión<select id="prim"><option value="4">Tira de triángulos</option><option value="3">Triángulos</option><option value="0">Puntos</option></select></label>
+</div>
+<div class="bar"><button id="man">Ver estos datos</button><button id="prev">− 2 bytes</button><button id="next">+ 2 bytes</button></div><pre id="hex">Sin archivo.</pre></div>
+</aside>
+<footer><p id="status" role="status"></p></footer>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const SIZE=[0,1,2,4];
+function layout(vt){
+  const w=(vt>>9)&3,nw=((vt>>14)&7)+1,t=vt&3,c=(vt>>2)&7,n=(vt>>5)&3,p=(vt>>7)&3;
+  if(!p||(c>0&&c<4)||((vt>>18)&7))return null;
+  let o=0,big=1,pos=0;
+  const add=(s,k)=>{if(!s)return;big=Math.max(big,s);o=Math.ceil(o/s)*s;const at=o;o+=s*k;return at};
+  add(SIZE[w],nw);const uv=add(SIZE[t],2);add(c?(c==7?4:2):0,1);add(SIZE[n],3);pos=add(SIZE[p],3);
+  return {stride:Math.ceil(o/big)*big,pos,fmt:p,uv,tc:t,index:(vt>>11)&3};
+}
+function readPos(dv,start,n,stride,pos,fmt){
+  if(start<0||start+(n-1)*stride+pos+3*SIZE[fmt]>dv.byteLength)return null;
+  const a=new Float32Array(n*3);
+  for(let i=0;i<n;i++)for(let k=0;k<3;k++){
+    const q=start+i*stride+pos+k*SIZE[fmt];
+    const v=fmt==3?dv.getFloat32(q,true):fmt==2?dv.getInt16(q,true)/32768:dv.getInt8(q)/128;
+    if(!Number.isFinite(v)||Math.abs(v)>1e5)return null;
+    a[i*3+k]=v;
+  }
+  return a;
+}
+/* menor = más coherente: distancia media entre vértices vecinos respecto al tamaño total */
+function score(a){
+  const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];let d=0;
+  for(let i=0;i<a.length;i+=3){for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],a[i+k]);hi[k]=Math.max(hi[k],a[i+k])}
+    if(i)d+=Math.hypot(a[i]-a[i-3],a[i+1]-a[i-2],a[i+2]-a[i-1])}
+  const s=Math.hypot(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2]);
+  return s>1e-4?d/(a.length/3-1)/s:Infinity;
+}
+function triangles(prim,seq){
+  const t=[];
+  const push=(a,b,c)=>{if(a!==b&&b!==c&&a!==c)t.push(a,b,c)};
+  if(prim==3)for(let i=0;i+2<seq.length;i+=3)push(seq[i],seq[i+1],seq[i+2]);
+  if(prim==4)for(let i=0;i+2<seq.length;i++)i&1?push(seq[i+1],seq[i],seq[i+2]):push(seq[i],seq[i+1],seq[i+2]);
+  if(prim==5)for(let i=1;i+1<seq.length;i++)push(seq[0],seq[i],seq[i+1]);
+  return t;
+}
+/* Busca listas de dibujo del chip gráfico de la PSP: VTYPE, VADDR y PRIM */
+function scan(dv){
+  const parts=[],seen=new Set(),len=dv.byteLength&~3;
+  for(let at=0;at<len;at+=4){
+    if(dv.getUint8(at+3)!==0x12)continue;
+    const L=layout(dv.getUint32(at,true)&0xffffff);if(!L)continue;
+    let first=at;for(let q=at-4;q>=0&&at-q<=32;q-=4)if(dv.getUint32(q,true)===0x14000000){first=q;break}
+    let va=null,ia=null,end=null;const prims=[];
+    for(let q=first;q<len&&q<first+4096;q+=4){
+      const w=dv.getUint32(q,true),op=w>>>24,arg=w&0xffffff;
+      if(q>at&&op==0x12)break;
+      if(op==1&&!prims.length)va=arg;
+      if(op==2&&!prims.length)ia=arg;
+      if(op==4){const type=arg>>16,n=arg&0xffff;if(type>6||n<1)break;prims.push({type,n,q})}
+      if(op==0x0b||op==0x0c){end=q+4;break}
+    }
+    if(!prims.length)continue;
+    const total=prims.reduce((s,p)=>s+p.n,0);if(total<3||total>60000)continue;
+    const bases=[];
+    if(va!==null)for(const b of [first,at,0])bases.push({v:b+va,i:ia===null?null:b+ia});
+    if(end!==null&&!L.index)for(const al of [4,16])bases.push({v:Math.ceil(end/al)*al,i:null});
+    let best=null;
+    for(const b of bases){
+      let idx=null,nv=total;
+      if(L.index){const s=SIZE[L.index];if(b.i===null||b.i<0||b.i+total*s>dv.byteLength)continue;
+        idx=[];for(let i=0;i<total;i++)idx.push(s==1?dv.getUint8(b.i+i):s==2?dv.getUint16(b.i+i*2,true):dv.getUint32(b.i+i*4,true));
+        nv=idx.reduce((m,x)=>Math.max(m,x),0)+1;if(nv>65536)continue}
+      if(nv<3)continue;
+      const a=readPos(dv,b.v,nv,L.stride,L.pos,L.fmt);if(!a)continue;
+      const s=score(a);if(s<(best?best.s*.6:0.45))best={s,a,idx,v:b.v};
+    }
+    if(!best)continue;
+    const key=best.v+':'+total;if(seen.has(key))continue;seen.add(key);
+    let k=0;const tri=[];
+    for(const p of prims){const seq=[];for(let i=0;i<p.n;i++,k++)seq.push(best.idx?best.idx[k]:k);for(const x of triangles(p.type,seq))tri.push(x)}
+    parts.push({verts:best.a,tri,on:true,off:best.v});
+  }
+  return parts;
+}
+/* Formato pMdl: tabla de partes; cada parte tiene bloques de vértices en tira de triángulos */
+function parsePmdl(dv){
+  const len=dv.byteLength;
+  if(len<0x64||dv.getUint32(0,false)!==0x704d646c)return null;
+  const u=a=>dv.getUint32(a,true);
+  const sc=[0,4,8].map(k=>dv.getFloat32(0x40+k,true)),count=u(0x5c),table=u(0x60),out=[];
+  if(!sc.every(x=>Number.isFinite(x)&&x>0)||count>512||table+count*32>len)return null;
+  let bad=0;
+  for(let i=0;i<count;i++){
+    const off=u(table+i*32+4);
+    if(off+4>len){bad++;continue}
+    const blocks=u(off);
+    if(blocks>4096||off+4+blocks*16>len){bad++;continue}
+    const v=[],tri=[],uvs=[],addr=[];
+    for(let k=0;k<blocks;k++){
+      const e=off+4+k*16,n=dv.getUint16(e,true),L=layout(u(e+8)&0xffffff);
+      const a=L&&n&&!L.index?readPos(dv,off+u(e+12),n,L.stride,L.pos,L.fmt):null;
+      if(!a){bad++;continue}
+      const base=v.length/3;
+      for(let j=0;j<n;j++)for(let c=0;c<2;c++){
+        const q=off+u(e+12)+j*L.stride+L.uv+c*SIZE[L.tc];
+        uvs.push(L.tc==1?(dv.getUint8(q)+.5)/256:L.tc==2?dv.getUint16(q,true)/32768:L.tc==3?dv.getFloat32(q,true):0)}
+      /* en el archivo el eje Y apunta hacia abajo */
+      for(let j=0;j<a.length;j+=3)v.push(a[j]*sc[0],-a[j+1]*sc[1],-a[j+2]*sc[2]);
+      for(let j=0;j<n;j++)addr.push(off+u(e+12)+j*L.stride+L.pos);
+      if(L.fmt!==2)addr.fill(-1,base);
+      for(const x of triangles(4,Array.from({length:n},(_,j)=>base+j)))tri.push(x);
+    }
+    const size=u(table+i*32+8),rel=addr.map(a=>a<0?-1:a-off);
+    const raw=off+size<=len&&rel.every(a=>a<0||a+6<=size)?new Uint8Array(dv.buffer,off,size):null;
+    if(v.length)out.push({raw,entry:new Uint8Array(dv.buffer,table+i*32,32),rel,bones:dv.getUint32(0x54,true),verts:Float32Array.from(v),uv:uvs,addr,sc,tri,on:true,off});
+  }
+  return out.length?{parts:out,bad}:null;
+}
+/* vista */
+const cv=$('c'),gl=cv.getContext('webgl',{antialias:true});
+let parts=[],data=null,rx=.15,ry=.6,rz=0,zoom=1,center=[0,0,0],radius=1,prog,buf,loc={};
+if(gl){
+  const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o};
+  prog=gl.createProgram();
+  gl.attachShader(prog,sh(gl.VERTEX_SHADER,'attribute vec3 p,n;attribute vec2 t;varying vec2 w;uniform vec3 c;uniform vec3 r;uniform float s,asp,dk;varying float l;vec3 R(vec3 v){float a=cos(r.y),b=sin(r.y),d=cos(r.x),e=sin(r.x);v=vec3(a*v.x+b*v.z,v.y,a*v.z-b*v.x);v=vec3(v.x,d*v.y-e*v.z,e*v.y+d*v.z);float f=cos(r.z),g=sin(r.z);return vec3(f*v.x-g*v.y,g*v.x+f*v.y,v.z);}void main(){w=t;vec3 v=R(p-c)*s;l=.35+.65*abs(dot(R(n),normalize(vec3(.3,.5,.8))));gl_Position=vec4(v.x/max(asp,1.),v.y*min(asp,1.),-v.z/s*dk,1.);gl_PointSize=3.;}'));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,'precision mediump float;uniform vec3 col;uniform float use,hi,sh;uniform sampler2D img;varying float l;varying vec2 w;void main(){vec3 k=col;if(use>.5){vec4 x=texture2D(img,w);if(x.a<.1)discard;k=mix(x.rgb,vec3(1.,.9,.35),hi*.7);}gl_FragColor=vec4(k*(sh<.5?1.:use>.5?.55+.45*l:l),1.);}'));
+  gl.linkProgram(prog);gl.useProgram(prog);buf=gl.createBuffer();
+  for(const u of ['c','r','s','asp','dk','col','use','hi','sh'])loc[u]=gl.getUniformLocation(prog,u);
+  for(const a of ['p','n','t']){loc['a'+a]=gl.getAttribLocation(prog,a);gl.enableVertexAttribArray(loc['a'+a])}
+}
+const COL=[[1,.62,.25],[.35,.7,1],[.45,.85,.55],[.95,.45,.55],[.75,.6,1],[.95,.85,.4]];
+/* indicador de ejes y ángulos de la cámara */
+function drawNav(){
+  const c=$('gizmo').getContext('2d');
+  for(const [id,v] of [['ax',rx],['ay',ry],['az',rz]]){
+    if(document.activeElement===$(id))continue;
+    let g=Math.round(v*180/Math.PI)%360;if(g>180)g-=360;if(g<=-180)g+=360;$(id).value=g||0;
+  }
+  c.clearRect(0,0,168,168);
+  const axes=[['X','#e0455e',[1,0,0]],['Y','#4f9e2f',[0,1,0]],['Z','#2f7fd8',[0,0,1]]].map(([n,col,[x,y,z]])=>{
+    const x1=Math.cos(ry)*x+Math.sin(ry)*z,z1=Math.cos(ry)*z-Math.sin(ry)*x,y1=Math.cos(rx)*y-Math.sin(rx)*z1;
+    return {n,col,x:Math.cos(rz)*x1-Math.sin(rz)*y1,y:Math.sin(rz)*x1+Math.cos(rz)*y1,z:Math.sin(rx)*y+Math.cos(rx)*z1}});
+  const ends=axes.flatMap(a=>[{...a,pos:true},{...a,x:-a.x,y:-a.y,z:-a.z,pos:false}]).sort((a,b)=>a.z-b.z);
+  c.lineWidth=5;c.font='bold 22px sans-serif';c.textAlign='center';c.textBaseline='middle';
+  for(const a of ends){
+    const px=84+a.x*62,py=84-a.y*62;
+    c.strokeStyle=c.fillStyle=a.col;c.globalAlpha=a.pos?1:.4;
+    if(a.pos){c.beginPath();c.moveTo(84,84);c.lineTo(px,py);c.stroke()}
+    c.beginPath();c.arc(px,py,a.pos?17:11,0,7);c.fill();
+    if(a.pos){c.fillStyle='#fff';c.fillText(a.n,px,py+1)}
+  }
+  c.globalAlpha=1;navEnds=ends;
+}
+let navEnds=[];
+/* tocar un extremo mira el modelo desde ese eje; tocarlo de nuevo pasa al lado contrario */
+$('gizmo').onclick=e=>{
+  const r=$('gizmo').getBoundingClientRect(),x=(e.clientX-r.left)/r.width*168,y=(e.clientY-r.top)/r.height*168;
+  let hit=null,best=32;
+  /* de delante hacia atrás: si coinciden dos extremos gana el visible */
+  for(const a of [...navEnds].reverse()){const d=Math.hypot(84+a.x*62-x,84-a.y*62-y);if(d<best-.5){best=d;hit=a}}
+  if(!hit)return;
+  let sign=hit.pos?1:-1;
+  if(hit.z>.999&&Math.abs(rz)<.001)sign=-sign;
+  const q=Math.PI/2;
+  [rx,ry]={X:[0,-sign*q],Y:[sign*q,0],Z:[0,sign>0?0:Math.PI]}[hit.n];rz=0;
+  document.activeElement.blur();draw();
+};
+for(const id of ['ax','ay','az']){
+  $(id).oninput=()=>{const v=parseFloat($(id).value);if(!Number.isFinite(v))return;const a=v*Math.PI/180;
+    if(id=='ax')rx=a;else if(id=='ay')ry=a;else rz=a;draw()};
+  $(id).onblur=()=>draw();
+}
+function draw(){
+  drawNav();
+  if(!gl)return;
+  const d=Math.min(devicePixelRatio,2),w=cv.clientWidth*d|0,h=cv.clientHeight*d|0;
+  if(cv.width!=w||cv.height!=h){cv.width=w;cv.height=h}
+  gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);
+  gl.uniform3fv(loc.c,center);gl.uniform3f(loc.r,rx,ry,rz);gl.uniform1f(loc.s,.9*zoom/radius);gl.uniform1f(loc.asp,w/h);gl.uniform1f(loc.dk,.18/radius);
+  drawGrid();
+  const wire=$('wire').checked;gl.uniform1f(loc.sh,$('shade').checked?1:0);
+  parts.forEach((P,j)=>{
+    if(!P.on||P.del)return;
+    const out=[],v=P.verts,t=P.tri;
+    const put=(i,n)=>out.push(v[i*3],v[i*3+1],v[i*3+2],...n,P.uv?P.uv[i*2]:0,P.uv?P.uv[i*2+1]:0);
+    for(let i=0;i<t.length;i+=3){
+      const [a,b,c]=[t[i],t[i+1],t[i+2]];
+      const u=[0,1,2].map(k=>v[b*3+k]-v[a*3+k]),q=[0,1,2].map(k=>v[c*3+k]-v[a*3+k]);
+      let n=[u[1]*q[2]-u[2]*q[1],u[2]*q[0]-u[0]*q[2],u[0]*q[1]-u[1]*q[0]];
+      const m=Math.hypot(...n)||1;n=n.map(x=>x/m);
+      if(wire)for(const [x,y] of [[a,b],[b,c],[c,a]]){put(x,[.3,.5,.8]);put(y,[.3,.5,.8])}
+      else{put(a,n);put(b,n);put(c,n)}
+    }
+    if(!t.length)for(let i=0;i<v.length/3;i++)put(i,[.3,.5,.8]);
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(out),gl.STREAM_DRAW);
+    gl.vertexAttribPointer(loc.ap,3,gl.FLOAT,false,32,0);gl.vertexAttribPointer(loc.an,3,gl.FLOAT,false,32,12);gl.vertexAttribPointer(loc.at,2,gl.FLOAT,false,32,24);
+    const use=P.tex&&!wire&&t.length;if(use)gl.bindTexture(gl.TEXTURE_2D,P.tex);gl.uniform1f(loc.use,use?1:0);gl.uniform1f(loc.hi,P.sel?1:0);
+    gl.uniform3f(loc.c,center[0]-offX(P),center[1],center[2]);
+    gl.uniform3fv(loc.col,P.sel?[1,.6,.15]:$('colors').checked?COL[j%COL.length]:[.74,.74,.74]);
+    gl.drawArrays(!t.length?gl.POINTS:wire?gl.LINES:gl.TRIANGLES,0,out.length/8);
+  });
+}
+function drawGrid(){
+  if(!$('grid').checked)return;
+  const step=parts.length?Math.max(1,Math.round(radius/6)):.2,N=14,end=N*step;
+  gl.uniform1f(loc.use,0);gl.uniform1f(loc.sh,0);gl.uniform3fv(loc.c,center);
+  const line=(a,b,col)=>{const v=[...a,0,1,0,0,0,...b,0,1,0,0,0];
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.STREAM_DRAW);
+    for(const [n,z,o] of [['ap',3,0],['an',3,12],['at',2,24]])gl.vertexAttribPointer(loc[n],z,gl.FLOAT,false,32,o);
+    gl.uniform3fv(loc.col,col);gl.drawArrays(gl.LINES,0,2)};
+  for(let i=-N;i<=N;i++){const p=i*step;
+    line([p,0,-end],[p,0,end],i?[.19,.23,.31]:[.33,.5,.78]);
+    line([-end,0,p],[end,0,p],i?[.19,.23,.31]:[.72,.28,.34])}
+  gl.uniform1f(loc.sh,$('shade').checked?1:0);
+}
+function frame(){
+  fit();
+}
+/* ajusta el zoom para que el modelo llene el recuadro */
+function fit(){
+  const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
+  for(const P of parts)if(P.on&&!P.del)P.verts.forEach((x,i)=>{if(i%3==0)x+=offX(P);lo[i%3]=Math.min(lo[i%3],x);hi[i%3]=Math.max(hi[i%3],x)});
+  if(lo[0]>hi[0])return;
+  center=lo.map((x,k)=>(x+hi[k])/2);radius=Math.hypot(...lo.map((x,k)=>hi[k]-x))/2||1;
+  const r=cv.getBoundingClientRect(),asp=r.width/r.height||1;
+  const hx=Math.max(hi[0]-lo[0],hi[2]-lo[2])/2||radius,hy=(hi[1]-lo[1])/2||radius;
+  zoom=.92*Math.min(radius*Math.max(asp,1)/(.9*hx),radius/(.9*hy*Math.min(asp,1)));
+}
+let history=[],mode='rot',models=[];
+/* desplazamiento solo visual para ver dos modelos lado a lado; no se guarda */
+const offX=P=>models.length>1&&$('apart').checked?models[P.m||0].dx:0;
+const active=()=>models.length>1?+$('act').value:0;
+function arrange(){
+  if(models.length<2)return;
+  const box=i=>{let lo=1e9,hi=-1e9;for(const P of parts)if(P.m===i)for(let j=0;j<P.orig.length;j+=3){lo=Math.min(lo,P.orig[j]);hi=Math.max(hi,P.orig[j])}return [lo,hi]};
+  const a=box(0),b=box(1),gap=Math.max(a[1]-a[0],b[1]-b[0])*.08;
+  const total=a[1]-a[0]+gap+b[1]-b[0];
+  models[0].dx=-total/2-a[0];models[1].dx=total/2-b[1];
+}
+function listModels(sel){
+  $('two').hidden=models.length<2;$('act').textContent='';
+  models.forEach((m,i)=>$('act').add(new Option(`${'AB'[i]}: ${m.name}`,i)));
+  $('act').value=sel;
+}
+const picked=()=>parts.filter(P=>P.sel&&P.on&&!P.del);
+const save=()=>{history.push({list:parts.slice(),state:parts.map(P=>[P,P.verts,P.del])});if(history.length>100)history.shift()};
+function refresh(){
+  $('list').textContent='';
+  parts.forEach((P,i)=>{if(P.del)return;
+    const row=document.createElement('div'),c=document.createElement('input'),t=document.createElement('button');
+    c.type='checkbox';c.checked=P.on;c.id='part'+i;c.setAttribute('aria-label',`Mostrar parte ${P.n} del modelo ${'AB'[P.m||0]}`);
+    c.onchange=()=>{P.on=c.checked;if(!P.on)P.sel=false;refresh()};
+    t.textContent=`${models.length>1?'AB'[P.m]+' · ':''}Parte ${P.n}${P.added?' (de '+P.from+')':''}: ${P.verts.length/3} vért., ${P.tri.length/3} tri., ${P.added?'nueva':'0x'+P.off.toString(16)}`;
+    t.setAttribute('aria-pressed',!!P.sel);t.disabled=!P.on;t.onclick=()=>{P.sel=!P.sel;refresh()};
+    row.append(c,t);$('list').append(row)});
+  if(!$('list').firstChild)$('list').textContent='Ninguna.';
+  const n=picked().length;
+  $('sel').textContent=n?`Partes seleccionadas: ${n}`:'Ninguna parte seleccionada.';
+  $('del').disabled=$('none').disabled=$('focus').disabled=!n;
+  for(const x of document.querySelectorAll('[data-m]'))x.disabled=!n;
+  $('undo').disabled=!history.length;
+  $('restore').disabled=!parts.some(P=>P.added||P.del||P.verts!==P.orig);
+  $('tcopy').hidden=$('tmove').hidden=models.length<2;$('tcopy').disabled=$('tmove').disabled=!n;
+  draw();
+}
+function show(p){
+  parts=p;history=[];models=[];p.forEach((P,i)=>{P.orig=P.verts;P.m=0;P.n=i+1});$('two').hidden=true;
+  $('out').hidden=true;frame();refresh();
+}
+function shift(d){
+  for(const P of picked())P.verts=P.verts.map((x,i)=>x+d[i%3]);
+}
+function pick(px,py){
+  const r=cv.getBoundingClientRect(),asp=r.width/r.height,sc=.9*zoom/radius;
+  const x=(px-r.left)/r.width*2-1,y=1-(py-r.top)/r.height*2;
+  const a=Math.cos(ry),b=Math.sin(ry),d=Math.cos(rx),e=Math.sin(rx);
+  let hit=null,depth=-Infinity;
+  for(const P of parts){if(!P.on||P.del)continue;
+    const v=P.verts,q=[];
+    for(let i=0;i<v.length;i+=3){const X=v[i]+offX(P)-center[0],Y=v[i+1]-center[1],Z=v[i+2]-center[2],X1=a*X+b*Z,Z1=a*Z-b*X;
+      const Y1=d*Y-e*Z1,f=Math.cos(rz),h=Math.sin(rz);q.push([(f*X1-h*Y1)*sc/Math.max(asp,1),(h*X1+f*Y1)*sc*Math.min(asp,1),(e*Y+d*Z1)*sc])}
+    for(let i=0;i<P.tri.length;i+=3){
+      const A=q[P.tri[i]],B=q[P.tri[i+1]],C=q[P.tri[i+2]];
+      const k=(B[1]-C[1])*(A[0]-C[0])+(C[0]-B[0])*(A[1]-C[1]);if(Math.abs(k)<1e-12)continue;
+      const u=((B[1]-C[1])*(x-C[0])+(C[0]-B[0])*(y-C[1]))/k,w=((C[1]-A[1])*(x-C[0])+(A[0]-C[0])*(y-C[1]))/k;
+      if(u<0||w<0||u+w>1)continue;
+      const z=u*A[2]+w*B[2]+(1-u-w)*C[2];if(z>depth){depth=z;hit=P}
+    }
+    if(!P.tri.length)for(const A of q)if(Math.hypot((A[0]-x)*r.width,(A[1]-y)*r.height)<24&&A[2]>depth){depth=A[2];hit=P}
+  }
+  if(hit){hit.sel=!hit.sel;refresh()}
+}
+const say=t=>$('status').textContent=t;
+function addModel(ab,name){
+  const dv=new DataView(ab),m=parsePmdl(dv);
+  if(!m)return say(`${name} no es un .pmdl que el visor reconozca. El primer modelo sigue abierto.`);
+  if(!models.length)return say('Primero abre un modelo con Archivo → Abrir .pmdl.');
+  parts=parts.filter(P=>P.m!==1);history=[];
+  m.parts.forEach((P,i)=>{P.orig=P.verts;P.m=1;P.n=i+1});
+  for(const P of parts)P.sel=false;
+  parts=parts.concat(m.parts);models[1]={name,data:dv,dx:0};data=dv;
+  arrange();listModels(1);zoom=1;frame();refresh();
+  say(`Modelo B añadido: ${name}, ${m.parts.length} partes.`+(m.bad?` No se pudieron leer ${m.bad} bloques.`:''));
+}
+function load(ab,name){
+  data=new DataView(ab);const lines=[];
+  for(let i=0;i<Math.min(256,ab.byteLength);i+=16){const b=[...new Uint8Array(ab,i,Math.min(16,ab.byteLength-i))];
+    lines.push(i.toString(16).padStart(4,'0')+'  '+b.map(x=>x.toString(16).padStart(2,'0')).join(' ')+'  '+b.map(x=>x>31&&x<127?String.fromCharCode(x):'.').join(''))}
+  $('hex').textContent=lines.join('\n')||'Archivo vacío.';
+  const m=parsePmdl(data);
+  if(m){zoom=1;rx=.15;ry=.4;show(m.parts);models=[{name,data,dx:0}];listModels(0);refresh();
+    const nv=m.parts.reduce((t,P)=>t+P.verts.length/3,0);
+    return say(`${name}: ${m.parts.length} partes, ${nv} vértices.`+(m.bad?` No se pudieron leer ${m.bad} bloques.`:''))}
+  const p=scan(data);zoom=1;show(p);
+  say(p.length?`${name}: ${ab.byteLength} bytes, ${p.length} partes detectadas por búsqueda automática. Comprueba que la forma sea correcta.`
+    :`${name}: ${ab.byteLength} bytes. No se detectó geometría automáticamente. Prueba la lectura manual o envía el archivo a Claude para ajustar el lector.`);
+}
+function manual(){
+  if(!data)return say('Primero abre un archivo.');
+  const off=parseInt($('off').value,16),n=+$('cnt').value,s=+$('str').value,pos=+$('pos').value,fmt=+$('fmt').value,pr=+$('prim').value;
+  const a=Number.isInteger(off)&&n>=3&&n<=200000&&s>0&&pos>=0?readPos(data,off,n,s,pos,fmt):null;
+  if(!a)return say('Esos valores no dan datos válidos o se salen del archivo. Cambia el inicio, la cantidad o el formato.');
+  show([{verts:a,tri:triangles(pr,[...Array(n).keys()]),on:true,off}]);say(`Lectura manual desde 0x${off.toString(16)}.`);
+}
+$('man').onclick=manual;
+for(const [id,d] of [['prev',-2],['next',2]])$(id).onclick=()=>{$('off').value=Math.max(0,(parseInt($('off').value,16)||0)+d).toString(16);manual()};
+async function openFile(e){
+  const f=e.target.files[0];if(!f)return;
+  try{
+    if(f.size>32e6)return say('El archivo supera 32 MB. Elige un .pmdl individual.');
+    say('Leyendo '+f.name+'…');
+    const ab=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(r.error);r.readAsArrayBuffer(f)});
+    if(e.target.id==='add')addModel(ab,f.name);else load(ab,f.name);
+  }catch(err){say('No se pudo leer el archivo. Cópialo a Descargas e inténtalo de nuevo.')}
+  finally{e.target.value=''}
+}
+$('file').onchange=$('file2').onchange=$('add').onchange=openFile;
+$('act').onchange=()=>{data=models[active()].data;for(const P of parts)P.sel=false;refresh()};
+$('selm').onclick=()=>{for(const P of parts)P.sel=P.m===active()&&P.on&&!P.del;refresh()};
+$('apart').onchange=()=>{frame();draw()};
+for(const id of ['wire','shade','grid','colors'])$(id).onchange=draw;
+/* menús y pestañas */
+const menus=[...document.querySelectorAll('.menu')];
+for(const m of menus)m.addEventListener('toggle',()=>{if(m.open)for(const o of menus)if(o!==m)o.open=false});
+const closeMenus=()=>{for(const m of menus)m.open=false};
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.menu'))closeMenus()});
+document.addEventListener('change',e=>{if(e.target.type==='file')closeMenus()});
+for(const b of document.querySelectorAll('.menu button'))b.addEventListener('click',closeMenus);
+for(const t of document.querySelectorAll('[data-tab]'))t.onclick=()=>{for(const o of document.querySelectorAll('[data-tab]')){o.setAttribute('aria-selected',o===t);$(o.dataset.tab).hidden=o!==t}};
+$('reset').onclick=()=>{rz=0;rx=.15;ry=.6;zoom=1;frame();draw()};
+$('obj').onclick=async()=>{
+  let o='',base=1;
+  parts.forEach((P,j)=>{if(!P.on||P.del)return;o+=`o parte${j+1}\n`;const v=P.verts;
+    for(let i=0;i<v.length;i+=3)o+=`v ${v[i]} ${v[i+1]} ${v[i+2]}\n`;
+    for(let i=0;i<P.tri.length;i+=3)o+=`f ${P.tri[i]+base} ${P.tri[i+1]+base} ${P.tri[i+2]+base}\n`;base+=v.length/3});
+  if(!o)return say('No hay geometría para copiar.');
+  try{await navigator.clipboard.writeText(o);say('OBJ copiado. Pégalo en un archivo de texto con extensión .obj.')}
+  catch{$('out').hidden=false;$('out').value=o;$('out').select();say('Copia el texto seleccionado y guárdalo como .obj.')}
+};
+function setBig(on){
+  $('stage').classList.toggle('full',on);const t=on?'Reducir visor':'Ampliar visor';$('big').setAttribute('aria-label',t);$('big').title=t;$('big').setAttribute('aria-pressed',on);
+  try{const p=on?$('stage').requestFullscreen?.():document.fullscreenElement&&document.exitFullscreen();p?.catch?.(()=>{})}catch{}
+  draw();
+}
+$('big').onclick=()=>setBig(!$('stage').classList.contains('full'));
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&$('stage').classList.contains('full'))setBig(false)});
+function setMode(m){mode=m;for(const k of ['rot','move','cam'])$('m'+k).setAttribute('aria-pressed',m==k)}
+/* de píxeles de pantalla a coordenadas del modelo */
+function toModel(dx,dy){
+  const r=cv.getBoundingClientRect(),asp=r.width/r.height,sc=.9*zoom/radius;
+  const x0=2*dx/r.width*Math.max(asp,1)/sc,y0=-2*dy/r.height/Math.min(asp,1)/sc;
+  const X=Math.cos(rz)*x0+Math.sin(rz)*y0,Y=Math.cos(rz)*y0-Math.sin(rz)*x0,z=-Math.sin(rx)*Y;
+  return [Math.cos(ry)*X-Math.sin(ry)*z,Math.cos(rx)*Y,Math.sin(ry)*X+Math.cos(ry)*z];
+}
+const pan=(dx,dy)=>{const d=toModel(dx,dy);center=center.map((c,k)=>c-d[k])};
+const setZoom=z=>zoom=Math.min(40,Math.max(.1,z));
+$('mcam').onclick=()=>setMode('cam');
+$('focus').onclick=()=>{
+  const lo=[1e9,1e9,1e9],hi=[-1e9,-1e9,-1e9];
+  for(const P of picked())P.verts.forEach((x,i)=>{if(i%3==0)x+=offX(P);lo[i%3]=Math.min(lo[i%3],x);hi[i%3]=Math.max(hi[i%3],x)});
+  if(lo[0]>hi[0])return;
+  center=lo.map((x,k)=>(x+hi[k])/2);setZoom(radius*.9/(Math.hypot(...lo.map((x,k)=>hi[k]-x))/2||radius));draw();
+};
+$('mrot').onclick=()=>setMode('rot');$('mmove').onclick=()=>setMode('move');
+$('del').onclick=()=>{const p=picked();if(!p.length)return;save();for(const P of p){P.del=true;P.sel=false}refresh()};
+$('undo').onclick=()=>{const h=history.pop();if(!h)return;parts=h.list;for(const [P,v,del] of h.state){P.verts=v;P.del=del}refresh()};
+$('none').onclick=()=>{for(const P of parts)P.sel=false;refresh()};
+$('restore').onclick=()=>{save();parts=parts.filter(P=>!P.added);for(const P of parts){P.verts=P.orig;P.del=false}refresh()};
+for(const x of document.querySelectorAll('[data-m]'))x.onclick=()=>{if(!picked().length)return;const [k,dir]=x.dataset.m.split(',').map(Number),d=[0,0,0];d[k]=dir*radius*.03;save();shift(d);refresh()};
+$('tex').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f||!gl)return;
+  const target=picked().length?picked():parts.filter(P=>!P.del&&P.m===active());
+  if(!target.some(P=>P.uv))return say('Primero abre un modelo .pmdl.');
+  try{
+    const bmp=await createImageBitmap(f,{premultiplyAlpha:'none'});
+    /* WebGL necesita lados potencia de dos para repetir la imagen */
+    const pot=n=>Math.min(1024,2**Math.ceil(Math.log2(n))),k=document.createElement('canvas');
+    k.width=pot(bmp.width);k.height=pot(bmp.height);k.getContext('2d').drawImage(bmp,0,0,k.width,k.height);
+    const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,k);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    for(const P of target){P.tex=t;P.sel=false}
+    refresh();say(`Textura ${f.name} aplicada a ${target.length} partes.`);
+  }catch(err){say('No se pudo leer la imagen. Usa un archivo PNG o JPG.')}
+};
+$('notex').onclick=()=>{for(const P of picked().length?picked():parts.filter(P=>P.m===active()))P.tex=null;draw()};
+/* Copia del archivo original: solo cambian las posiciones de las partes editadas.
+   Una parte eliminada se reduce a un punto, así no cambia la estructura del archivo. */
+function buildPmdl(m){
+  const src=models[m].data,own=parts.filter(P=>P.m===m&&!P.added),extra=parts.filter(P=>P.m===m&&P.added&&!P.del);
+  if([...own,...extra].some(P=>P.rel.some(a=>a<0)))return {error:'Este modelo usa un tipo de vértice que todavía no se puede guardar.'};
+  const out=src.buffer.slice(0),dv=new DataView(out);
+  const oldSc=[0,4,8].map(k=>src.getFloat32(0x40+k,true)),sc=oldSc.slice();
+  /* si una parte traída de otro modelo no cabe, se amplía la escala de este */
+  for(const P of extra)P.verts.forEach((x,i)=>{const k=i%3,need=Math.abs(x)*32768/32767;if(need>sc[k]*1.00001)sc[k]=need*1.0001});
+  const grown=sc.some((x,k)=>x!==oldSc[k]);
+  const quant=(x,k)=>Math.round(x*(k?-1:1)/sc[k]*32768);
+  let changed=0,outside=0;
+  for(const P of own){
+    let touched=false;
+    for(let i=0;i<P.rel.length;i++)for(let k=0;k<3;k++){
+      const q=P.off+P.rel[i]+k*2,j=i*3+k,edited=P.verts[j]!==P.orig[j];
+      let val;
+      if(P.del)val=0;
+      else if(edited){
+        if(Math.abs(P.verts[j])>oldSc[k]*1.00002){outside++;continue}
+        val=Math.max(-32768,Math.min(32767,quant(P.verts[j],k)))}
+      else if(sc[k]!==oldSc[k])val=Math.round(src.getInt16(q,true)*oldSc[k]/sc[k]);
+      else continue;
+      if(dv.getInt16(q,true)!==val){dv.setInt16(q,val,true);if(P.del||edited)touched=true}
+    }
+    if(touched)changed++;
+  }
+  if(outside)return {error:'No se guardó: alguna parte quedó fuera del espacio que admite el modelo. Acércala a su posición original o usa Deshacer.'};
+  const stored=sc.map(Math.fround);
+  if(grown)stored.forEach((x,k)=>dv.setFloat32(0x40+k*4,x,true));
+  if(!extra.length)return {out,changed,added:0};
+  /* reconstruir: cabecera, tabla ampliada, partes originales, partes nuevas y relleno final */
+  const count=dv.getUint32(0x5c,true),table=dv.getUint32(0x60,true),start=table+count*32;
+  let end=start;
+  for(let i=0;i<count;i++){const o=dv.getUint32(table+i*32+4,true),z=dv.getUint32(table+i*32+8,true);
+    if(o<start||o+z>out.byteLength)return {error:'La estructura de este .pmdl no permite añadirle partes.'};end=Math.max(end,o+z)}
+  const grow=extra.length*32,align=x=>Math.ceil(x/16)*16;
+  let at=align(end+grow);
+  const places=extra.map(P=>{const o=at;at=align(at+P.raw.length);return o});
+  const res=new Uint8Array(at+out.byteLength-end),r=new DataView(res.buffer),bytes=new Uint8Array(out);
+  res.set(bytes.subarray(0,start),0);res.set(bytes.subarray(start,end),start+grow);res.set(bytes.subarray(end),at);
+  for(let i=0;i<count;i++){const q=table+i*32+4;r.setUint32(q,r.getUint32(q,true)+grow,true)}
+  extra.forEach((P,n)=>{
+    const e=start+n*32,o=places[n];
+    res.set(P.entry,e);r.setUint16(e,count+n,true);r.setUint32(e+4,o,true);r.setUint32(e+8,P.raw.length,true);
+    res.set(P.raw,o);
+    for(let i=0;i<P.rel.length;i++)for(let k=0;k<3;k++)r.setInt16(o+P.rel[i]+k*2,Math.max(-32768,Math.min(32767,quant(P.verts[i*3+k],k))),true);
+  });
+  r.setUint32(0x5c,count+extra.length,true);
+  return {out:res.buffer,changed,added:extra.length};
+}
+/* ZIP sin compresión */
+function zip(name,bytes){
+  let c=~0;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^(0xedb88320&-(c&1))}
+  c=~c>>>0;
+  const nm=new TextEncoder().encode(name),n=nm.length,len=bytes.length,z=new Uint8Array(30+n+len+46+n+22),d=new DataView(z.buffer);
+  const w2=(o,v)=>d.setUint16(o,v,true),w4=(o,v)=>d.setUint32(o,v,true);
+  w4(0,0x04034b50);w2(4,20);w2(6,0x800);w2(12,33);w4(14,c);w4(18,len);w4(22,len);w2(26,n);z.set(nm,30);z.set(bytes,30+n);
+  const m=30+n+len;w4(m,0x02014b50);w2(m+4,20);w2(m+6,20);w2(m+8,0x800);w2(m+14,33);w4(m+16,c);w4(m+20,len);w4(m+24,len);w2(m+28,n);z.set(nm,m+46);
+  const e=m+46+n;w4(e,0x06054b50);w2(e+8,1);w2(e+10,1);w4(e+12,46+n);w4(e+16,m);
+  return z;
+}
+const downloads=window.claude?.use?window.claude.use('downloads'):null;
+$('savep').onclick=async()=>{
+  if(!models.length||!parts.every(P=>P.addr))return say('Para guardar, primero abre un archivo .pmdl del juego.');
+  const m=active(),r=buildPmdl(m);if(r.error)return say(r.error);
+  const name=models[m].name.replace(/\.pmdl$/i,'')+'_editado.pmdl',bytes=new Uint8Array(r.out),info=`Partes modificadas: ${r.changed}. Partes añadidas: ${r.added}.`;
+  try{
+    if(downloads){
+      const api=await downloads;
+      if(!api)return say('Esta vista no permite descargar. Abre la página en Chrome.');
+      const z=name.replace(/\.pmdl$/,'.zip');
+      await api.save({filename:z,data:zip(name,bytes)});
+      say(`Guardado ${z}. Extráelo para obtener ${name}. ${info}`);
+    }else{
+      /* en ZIP y con su tipo: Android no cambia la extensión del .pmdl que va dentro */
+      const z=name.replace(/\.pmdl$/,'.zip'),a=document.createElement('a');
+      a.href=URL.createObjectURL(new Blob([zip(name,bytes)],{type:'application/zip'}));a.download=z;a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),60000);say(`Descarga iniciada: ${z}. Extráelo para obtener ${name}. ${info}`);
+    }
+  }catch(err){say(err?.code=='declined'?'Guardado cancelado.':'No se pudo guardar desde esta vista. Abre la página en Chrome e inténtalo de nuevo.')}
+};
+function transfer(move){
+  const sel=picked();if(models.length<2||!sel.length)return;
+  if(!sel.every(P=>P.raw))return say('Alguna parte seleccionada no se puede pasar porque sus datos están incompletos.');
+  save();
+  const made=sel.map(P=>{
+    const m=1-P.m,n=1+Math.max(0,...parts.filter(Q=>Q.m===m).map(Q=>Q.n));
+    const Q={...P,m,n,added:true,from:P.added?P.from:'AB'[P.m],orig:P.verts,sel:true,on:true,del:false};
+    P.sel=false;if(move)P.del=true;parts.push(Q);return Q});
+  /* una parte pasada y vuelta a pasar no deja restos */
+  parts=parts.filter(P=>!(P.added&&P.del));
+  const to=[...new Set(made.map(Q=>Q.m))];
+  if(to.length==1){$('act').value=to[0];data=models[to[0]].data}
+  const bones=made.some(Q=>Q.bones!==models[Q.m].data.getUint32(0x54,true));
+  refresh();
+  say(`${made.length} partes ${move?'pasadas':'copiadas'} a ${to.map(i=>'AB'[i]).join(' y ')}. En el juego usarán la textura del modelo que las recibe.`+(bones?' Los dos modelos tienen distinto número de huesos: revisa las animaciones.':''));
+}
+$('tcopy').onclick=()=>transfer(false);$('tmove').onclick=()=>transfer(true);
+const pts=new Map();let tap=null,drag=false;
+cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,e);
+  tap=pts.size==1?{x:e.clientX,y:e.clientY}:null;drag=false};
+cv.onpointerup=e=>{pts.delete(e.pointerId);if(tap)pick(e.clientX,e.clientY);tap=null;if(drag)refresh();drag=false};
+cv.onpointercancel=e=>{pts.delete(e.pointerId);tap=null;if(drag)refresh();drag=false};
+cv.onpointermove=e=>{let old=pts.get(e.pointerId);if(!old)return;
+  if(tap){if(Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<8)return;old={clientX:tap.x,clientY:tap.y};tap=null}
+  const dx=e.clientX-old.clientX,dy=e.clientY-old.clientY;
+  if(pts.size==2){const o=[...pts].find(([id])=>id!==e.pointerId)[1];const a=Math.hypot(old.clientX-o.clientX,old.clientY-o.clientY),b=Math.hypot(e.clientX-o.clientX,e.clientY-o.clientY);if(a)setZoom(zoom*b/a);pan(dx/2,dy/2)}
+  else if(mode=='move'){
+    if(picked().length){if(!drag){save();drag=true}
+      shift(toModel(dx,dy))}
+  }else if(mode=='cam'){pan(dx,dy)
+  }else{ry+=dx*.01;rx+=dy*.01}
+  pts.set(e.pointerId,e);draw()};
+cv.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*Math.exp(-e.deltaY*.001));draw()},{passive:false});
+new ResizeObserver(draw).observe(cv);
+if(!gl)say('Tu navegador no permite WebGL, así que no se puede mostrar la vista 3D.');else{show([]);say('Toca Archivo → Abrir .pmdl para cargar un modelo.')}
+</script>
